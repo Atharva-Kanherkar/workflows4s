@@ -1,10 +1,23 @@
+error id: file://<WORKSPACE>/workflows4s-example/src/test/scala/workflows4s/example/docs/ExamplesTest.scala:`<none>`.
+file://<WORKSPACE>/workflows4s-example/src/test/scala/workflows4s/example/docs/ExamplesTest.scala
+empty definition using pc, found symbol in pc: `<none>`.
+empty definition using semanticdb
+empty definition using fallback
+non-local guesses:
+	 -org/scalatest/freespec/AnyFreeSpec#
+	 -AnyFreeSpec#
+	 -scala/Predef.AnyFreeSpec#
+offset: 233
+uri: file://<WORKSPACE>/workflows4s-example/src/test/scala/workflows4s/example/docs/ExamplesTest.scala
+text:
+```scala
 package workflows4s.example.docs
 
 import org.scalatest.freespec.AnyFreeSpec
 import workflows4s.example.TestUtils
 import workflows4s.example.docs.pullrequest.{PullRequestWorkflow, PullRequestWorkflowDraft}
-import workflows4s.example.docs.courseregistration.CourseRegistrationWorkflow
-class ExamplesTest extends AnyFreeSpec {
+
+class ExamplesTest extends @@AnyFreeSpec {
 
   "render" in {
     TestUtils.renderDocsExample(RunIOExample.doThings, "run-io")
@@ -27,8 +40,6 @@ class ExamplesTest extends AnyFreeSpec {
     TestUtils.renderDocsExample(PullRequestWorkflow.workflow, "pull-request")
 
     TestUtils.renderDebugToFile(PullRequestWorkflow.workflow.toProgress, "docs/pull-request.debug.txt")
-    TestUtils.renderDocsExample(CourseRegistrationWorkflow.workflow, "course-registration")
-TestUtils.renderDebugToFile(CourseRegistrationWorkflow.workflow.toProgress, "docs/course-registration.debug.txt")
   }
 
   "render progress" in {
@@ -38,3 +49,10 @@ TestUtils.renderDebugToFile(CourseRegistrationWorkflow.workflow.toProgress, "doc
   }
 
 }
+
+```
+
+
+#### Short summary: 
+
+empty definition using pc, found symbol in pc: `<none>`.
