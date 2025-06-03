@@ -108,7 +108,6 @@ lazy val `workflows4s-example` = (project in file("workflows4s-example"))
     `workflows4s-filesystem`,
     `workflows4s-quartz`,
   )
-
 lazy val commonSettings = Seq(
   scalaVersion      := "3.7.0",
   scalacOptions ++= Seq("-no-indent", "-Xmax-inlines", "64"),
