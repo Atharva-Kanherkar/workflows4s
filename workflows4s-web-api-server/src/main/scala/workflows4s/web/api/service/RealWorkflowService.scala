@@ -1,40 +1,43 @@
 package workflows4s.web.api.service
 
 import cats.effect.IO
-import io.circe.Encoder
+import io.circe.{Encoder, Json}
+import io.circe.syntax.*
 import workflows4s.runtime.WorkflowRuntime
 import workflows4s.web.api.model.*
-import workflows4s.wio.WorkflowContext
-import workflows4s.wio.model.WIOExecutionProgress
+import workflows4s.wio.{WCState, WorkflowContext}
+import workflows4s.wio.model.{WIOExecutionProgress}
+import workflows4s.wio.model.WIOExecutionProgressJson.given
 
 class RealWorkflowService(
     workflowEntries: List[RealWorkflowService.WorkflowEntry[?, ?]],
 ) extends WorkflowApiService {
 
-  def listDefinitions(): IO[List[WorkflowDefinition]] = {
-    val definitions = workflowEntries.map(entry =>
-      WorkflowDefinition(
-        id = entry.id,
-        name = entry.name,
-      ),
-    )
-    IO.pure(definitions)
-  }
+  override def listDefinitions(): IO[List[WorkflowDefinition]] =
+    IO.pure(workflowEntries.map(e => WorkflowDefinition(id = e.id, name = e.name)))
 
-  def getDefinition(id: String): IO[WorkflowDefinition] = {
-    IO.fromOption(
-      workflowEntries
-        .find(_.id == id)
-        .map(entry => WorkflowDefinition(id = entry.id, name = entry.name)),
-    )(new Exception(s"Workflow definition not found: $id"))
-  }
+  override def getDefinition(id: String): IO[WorkflowDefinition] =
+    findEntry(id).map(e => WorkflowDefinition(id = e.id, name = e.name))
 
-  def getInstance(definitionId: String, instanceId: String): IO[WorkflowInstance] = {
+  // Placeholder JSON model to keep compilation clean
+  override def getDefinitionModel(id: String): IO[Json] =
+    IO.pure(Json.obj("defId" -> Json.fromString(id), "model" -> Json.fromString("placeholder")))
+
+  override def getInstance(definitionId: String, instanceId: String): IO[WorkflowInstance] =
     for {
-      entry    <- IO.fromOption(workflowEntries.find(_.id == definitionId))(new Exception(s"Definition not found: $definitionId"))
+      entry    <- findEntry(definitionId)
       instance <- getRealInstance(entry, instanceId)
     } yield instance
-  }
+
+  override def getProgress(definitionId: String, instanceId: String): IO[Json] =
+    for {
+      entry   <- findEntry(definitionId)
+      json    <- getRealInstanceProgressJson(entry, instanceId)
+    } yield json
+
+  // --- helpers ---
+  private def findEntry(definitionId: String): IO[RealWorkflowService.WorkflowEntry[?, ?]] =
+    IO.fromOption(workflowEntries.find(_.id == definitionId))(new Exception(s"Definition not found: $definitionId"))
 
   private def progressToStatus(progress: WIOExecutionProgress[?]): InstanceStatus =
     progress.result match {
@@ -59,6 +62,21 @@ class RealWorkflowService(
       state = Some(entry.stateEncoder(currentState)),
     )
   }
+
+  private def getRealInstanceProgressJson[WorkflowId, Ctx <: WorkflowContext](
+      entry: RealWorkflowService.WorkflowEntry[WorkflowId, Ctx],
+      instanceId: String,
+  ): IO[Json] = {
+    val parsedId = entry.parseId(instanceId)
+    for {
+      workflowInstance <- entry.runtime.createInstance(parsedId)
+      progress         <- workflowInstance.getProgress
+      json              = {
+        given Encoder[WCState[Ctx]] = entry.stateEncoder
+        progress.asJson
+      }
+    } yield json
+  }
 }
 
 object RealWorkflowService {
@@ -67,6 +85,6 @@ object RealWorkflowService {
       name: String,
       runtime: WorkflowRuntime[IO, Ctx, WorkflowId],
       parseId: String => WorkflowId,
-      stateEncoder: Encoder[workflows4s.wio.WCState[Ctx]],
+      stateEncoder: Encoder[WCState[Ctx]],
   )
 }
