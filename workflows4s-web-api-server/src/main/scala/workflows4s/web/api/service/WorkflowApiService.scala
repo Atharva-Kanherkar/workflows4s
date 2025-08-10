@@ -17,13 +17,13 @@ trait WorkflowApiService {
 }
 
 class MockWorkflowApiService extends WorkflowApiService {
-  // FIXED: Match your server's actual definitions
+
   private val mockDefinitions = List(
     WorkflowDefinition("course-registration-v1", "Course Registration"),
     WorkflowDefinition("pull-request-v1",        "Pull Request"),
   )
 
-  // FIXED: Match your server's actual definitions
+ 
   private val mockInstances = List(
     WorkflowInstance("inst-1", "course-registration-v1", status = InstanceStatus.Running,   state = Some(Json.fromString("validation"))),
     WorkflowInstance("inst-2", "course-registration-v1", status = InstanceStatus.Completed, state = None),
@@ -90,5 +90,5 @@ class MockWorkflowApiService extends WorkflowApiService {
           ))
       }
       mermaidFlowchart = MermaidRenderer.renderWorkflow(prog)
-    } yield mermaidFlowchart.toString
+    } yield mermaidFlowchart.render
 }
