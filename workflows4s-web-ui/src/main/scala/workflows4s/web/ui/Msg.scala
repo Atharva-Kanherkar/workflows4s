@@ -1,6 +1,7 @@
 package workflows4s.web.ui
 
 import workflows4s.web.ui.models.{WorkflowDefinition, WorkflowInstance}
+import io.circe.Json 
 
 enum Msg {
   // Application lifecycle
@@ -20,4 +21,11 @@ enum Msg {
   // Instance loading results
   case InstanceLoadedSuccess(instance: WorkflowInstance)
   case InstanceLoadedFailure(reason: String)
+
+    //  Progress visualization messages
+  case LoadProgress
+  case ProgressLoadedSuccess(progress: Json, mermaidDiagram: String)
+  case ProgressLoadedFailure(reason: String)
+  case ToggleMermaidDiagram
+  case RefreshProgress
 }

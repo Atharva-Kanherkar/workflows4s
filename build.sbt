@@ -29,6 +29,7 @@ lazy val `workflows4s-core` = (project in file("workflows4s-core"))
     ),
   )
 
+
 lazy val `workflows4s-bpmn` = (project in file("workflows4s-bpmn"))
   .settings(commonSettings)
   .settings(
@@ -113,7 +114,8 @@ lazy val `workflows4s-example` = (project in file("workflows4s-example"))
     `workflows4s-doobie` % "compile->compile;test->test",
     `workflows4s-filesystem`,
     `workflows4s-quartz`,
-    `workflows4s-web-api-server` 
+    `workflows4s-web-api-server`
+
 
   )
 
@@ -128,23 +130,25 @@ lazy val `workflows4s-example` = (project in file("workflows4s-example"))
     ),
     publish / skip := true
   )
+    .dependsOn(`workflows4s-core`) 
 
-lazy val `workflows4s-web-api-server` = (project in file("workflows4s-web-api-server"))
+ lazy val `workflows4s-web-api-server` = (project in file("workflows4s-web-api-server"))
   .settings(commonSettings)
   .settings(
     libraryDependencies ++= Seq(
       "org.http4s" %% "http4s-ember-server" % "0.23.23",
-      "org.http4s" %% "http4s-dsl" % "0.23.23",
       "com.softwaremill.sttp.tapir" %% "tapir-http4s-server" % tapirVersion,
-      "com.softwaremill.sttp.tapir" %% "tapir-json-circe" % tapirVersion,
+      "io.circe" %% "circe-core" % circeVersion,
       "io.circe" %% "circe-generic" % circeVersion,
-      "io.circe" %% "circe-parser" % circeVersion
-    )
+      "org.typelevel" %% "cats-effect" % "3.5.4",
+    ),
+    publish / skip := true
   )
   .dependsOn(
     `workflows4s-core`,
     `workflows4s-web-api-shared`
   )
+
  lazy val `workflows4s-web-ui` = (project in file("workflows4s-web-ui"))
   .enablePlugins(ScalaJSPlugin)
   .settings(commonSettings)
@@ -161,7 +165,10 @@ lazy val `workflows4s-web-api-server` = (project in file("workflows4s-web-api-se
     scalaJSLinkerConfig ~= { _.withModuleKind(ModuleKind.ESModule) },
     publish / skip := true,
   )
-  .dependsOn(`workflows4s-core`)
+  .dependsOn(
+    `workflows4s-core`,
+    `workflows4s-web-api-shared`
+  )
 lazy val commonSettings = Seq(
   scalaVersion      := "3.7.0",
   scalacOptions ++= Seq("-no-indent", "-Xmax-inlines", "64", "-explain-cyclic", "-Ydebug-cyclic"),

@@ -3,17 +3,13 @@ package workflows4s.web.api.service
 import workflows4s.web.api.model.*
 import cats.effect.IO
 import io.circe.Json
-import io.circe.syntax.*
 import workflows4s.wio.model.{WIOExecutionProgress, WIOMeta}
-import workflows4s.wio.model.WIOExecutionProgressCodec.given
-import workflows4s.mermaid.MermaidRenderer
 
 trait WorkflowApiService {
   def listDefinitions(): IO[List[WorkflowDefinition]]
   def getDefinition(id: String): IO[WorkflowDefinition]
   def getInstance(definitionId: String, instanceId: String): IO[WorkflowInstance]
   def getProgress(definitionId: String, instanceId: String): IO[Json]
-  def getProgressAsMermaid(definitionId: String, instanceId: String): IO[String]
 }
 
 class MockWorkflowApiService extends WorkflowApiService {
@@ -23,18 +19,13 @@ class MockWorkflowApiService extends WorkflowApiService {
     WorkflowDefinition("pull-request-v1",        "Pull Request"),
   )
 
- 
   private val mockInstances = List(
-    WorkflowInstance("inst-1", "course-registration-v1", status = InstanceStatus.Running,   state = Some(Json.fromString("validation"))),
-    WorkflowInstance("inst-2", "course-registration-v1", status = InstanceStatus.Completed, state = None),
-    WorkflowInstance("inst-3", "course-registration-v1", status = InstanceStatus.Running,   state = Some(Json.fromString("approval"))),
-    WorkflowInstance("inst-4", "course-registration-v1", status = InstanceStatus.Failed,    state = Some(Json.fromString("processing"))),
-    WorkflowInstance("inst-5", "pull-request-v1",        status = InstanceStatus.Running,   state = Some(Json.fromString("review"))),
-    WorkflowInstance("inst-6", "pull-request-v1",        status = InstanceStatus.Completed, state = None),
+    WorkflowInstance("instance-1", "course-registration-v1", InstanceStatus.Running, None),
+    WorkflowInstance("instance-2", "course-registration-v1", InstanceStatus.Completed, None),
+    WorkflowInstance("instance-3", "pull-request-v1", InstanceStatus.Failed, None),
   )
 
-  def listDefinitions(): IO[List[WorkflowDefinition]] =
-    IO.pure(mockDefinitions)
+  def listDefinitions(): IO[List[WorkflowDefinition]] = IO.pure(mockDefinitions)
 
   def getDefinition(id: String): IO[WorkflowDefinition] =
     IO.fromOption(mockDefinitions.find(_.id == id))(new Exception(s"Definition not found: $id"))
@@ -67,28 +58,9 @@ class MockWorkflowApiService extends WorkflowApiService {
             WIOExecutionProgress.RunIO(WIOMeta.RunIO(Some("Processing"), None), Some(Left(())))
           ))
       }
-    } yield prog.asJson
-
-  def getProgressAsMermaid(definitionId: String, instanceId: String): IO[String] =
-    for {
-      inst <- getInstance(definitionId, instanceId)
-      prog: WIOExecutionProgress[String] = inst.status match {
-        case InstanceStatus.Running =>
-          WIOExecutionProgress.Sequence(Seq(
-            WIOExecutionProgress.Pure(WIOMeta.Pure(Some("Initialize"), None), Some(Right("initialized"))),
-            WIOExecutionProgress.RunIO(WIOMeta.RunIO(Some("Processing"), None), None)
-          ))
-        case InstanceStatus.Completed =>
-          WIOExecutionProgress.Sequence(Seq(
-            WIOExecutionProgress.Pure(WIOMeta.Pure(Some("Initialize"), None), Some(Right("initialized"))),
-            WIOExecutionProgress.RunIO(WIOMeta.RunIO(Some("Processing"), None), Some(Right("completed")))
-          ))
-        case InstanceStatus.Failed =>
-          WIOExecutionProgress.Sequence(Seq(
-            WIOExecutionProgress.Pure(WIOMeta.Pure(Some("Initialize"), None), Some(Right("initialized"))),
-            WIOExecutionProgress.RunIO(WIOMeta.RunIO(Some("Processing"), None), Some(Left(())))
-          ))
-      }
-      mermaidFlowchart = MermaidRenderer.renderWorkflow(prog)
-    } yield mermaidFlowchart.render
+    
+    } yield Json.obj(
+      "workflowProgress" -> Json.fromString(prog.toString),
+      "status" -> Json.fromString(inst.status.toString)
+    )
 }

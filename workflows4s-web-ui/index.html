@@ -1,14 +1,37 @@
 <!DOCTYPE html>
 <html>
-
 <head>
   <meta charset="UTF-8">
-  <title>workflows4s-web-ui</title>
+  <title>Workflows4s Management Dashboard</title>
+  <link rel="stylesheet" href="./style.css">
+  <script type="module">
+    import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10.9.0/dist/mermaid.esm.min.mjs';
+    
+    mermaid.initialize({ 
+      startOnLoad: true,
+      theme: 'default',
+      securityLevel: 'loose',
+      flowchart: {
+        useMaxWidth: true,
+        htmlLabels: true
+      }
+    });
+    
+    window.mermaid = mermaid;
+    
+    // Force re-scan every 2 seconds for new diagrams
+    setInterval(() => {
+      const unprocessed = document.querySelectorAll('.mermaid:not([data-processed="true"])');
+      if (unprocessed.length > 0) {
+        console.log('🔄 Found unprocessed Mermaid diagrams, initializing...');
+        mermaid.init();
+      }
+    }, 2000);
+    
+  </script>
 </head>
-
 <body>
   <div id="myapp"></div>
   <script type="module" src="./tyrianapp.js"></script>
 </body>
-
 </html>

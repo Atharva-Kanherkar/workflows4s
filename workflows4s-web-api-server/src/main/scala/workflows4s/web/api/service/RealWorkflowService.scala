@@ -1,24 +1,22 @@
 package workflows4s.web.api.service
 
-import cats.effect.IO
-import io.circe.{Encoder, Json}
-import io.circe.syntax.*
-import workflows4s.mermaid.MermaidRenderer
-import workflows4s.runtime.WorkflowRuntime
 import workflows4s.web.api.model.*
-import workflows4s.wio.{WCState, WorkflowContext}
+import cats.effect.IO
+import io.circe.*
+// REMOVED: import io.circe.syntax.*
 import workflows4s.wio.model.WIOExecutionProgress
-import workflows4s.wio.model.WIOExecutionProgressCodec.given
+import workflows4s.wio.*
+import workflows4s.runtime.WorkflowRuntime
 
-class RealWorkflowService(
-    workflowEntries: List[RealWorkflowService.WorkflowEntry[?]],
-) extends WorkflowApiService {
+class RealWorkflowService(workflowEntries: List[RealWorkflowService.WorkflowEntry[?]]) extends WorkflowApiService {
 
   def listDefinitions(): IO[List[WorkflowDefinition]] =
     IO.pure(workflowEntries.map(e => WorkflowDefinition(e.id, e.name)))
 
   def getDefinition(id: String): IO[WorkflowDefinition] =
-    findEntry(id).map(e => WorkflowDefinition(e.id, e.name))
+    for {
+      entry <- findEntry(id)
+    } yield WorkflowDefinition(entry.id, entry.name)
 
   def getInstance(definitionId: String, instanceId: String): IO[WorkflowInstance] =
     for {
@@ -28,15 +26,15 @@ class RealWorkflowService(
 
   def getProgress(definitionId: String, instanceId: String): IO[Json] =
     for {
-      entry <- findEntry(definitionId)
-      json  <- getRealInstanceProgressJson(entry, instanceId)
-    } yield json
-
-  def getProgressAsMermaid(definitionId: String, instanceId: String): IO[String] =
-    for {
       entry    <- findEntry(definitionId)
       progress <- getRealProgress(entry, instanceId)
-    } yield MermaidRenderer.renderWorkflow(progress).toString
+      // Converted to simple Json representation instead of complex ProgressResponse
+      progressAsString = progress.map(state => Some(state.toString))
+    } yield Json.obj(
+      "workflowProgress" -> Json.fromString(progressAsString.toString),
+      "instanceId" -> Json.fromString(instanceId),
+      "definitionId" -> Json.fromString(definitionId)
+    )
 
   private def findEntry(definitionId: String): IO[RealWorkflowService.WorkflowEntry[?]] =
     IO.fromOption(workflowEntries.find(_.id == definitionId))(new Exception(s"Definition not found: $definitionId"))
@@ -52,9 +50,8 @@ class RealWorkflowService(
       entry: RealWorkflowService.WorkflowEntry[Ctx],
       instanceId: String,
   ): IO[WorkflowInstance] = {
-    val parsedId = entry.parseId(instanceId)
     for {
-      workflowInstance <- entry.runtime.createInstance(parsedId)
+      workflowInstance <- entry.runtime.createInstance(instanceId)
       currentState     <- workflowInstance.queryState()
       progress         <- workflowInstance.getProgress
     } yield WorkflowInstance(
@@ -69,22 +66,10 @@ class RealWorkflowService(
       entry: RealWorkflowService.WorkflowEntry[Ctx],
       instanceId: String,
   ): IO[WIOExecutionProgress[WCState[Ctx]]] = {
-    val parsedId = entry.parseId(instanceId)
     for {
-      workflowInstance <- entry.runtime.createInstance(parsedId)
+      workflowInstance <- entry.runtime.createInstance(instanceId)
       progress         <- workflowInstance.getProgress
     } yield progress
-  }
-
-  private def getRealInstanceProgressJson[Ctx <: WorkflowContext](
-      entry: RealWorkflowService.WorkflowEntry[Ctx],
-      instanceId: String,
-  ): IO[Json] = {
-    for {
-      progress <- getRealProgress(entry, instanceId) // WIOExecutionProgress[WCState[Ctx]]
-      // map expects State => Option[NewState]
-      progressAsString: WIOExecutionProgress[String] = progress.map(st => Some(st.toString))
-    } yield progressAsString.asJson
   }
 }
 
@@ -92,10 +77,7 @@ object RealWorkflowService {
   case class WorkflowEntry[Ctx <: WorkflowContext](
       id: String,
       name: String,
-      // WorkflowRuntime expects [F, Ctx, WorkflowId]. Here WorkflowId is String.
       runtime: WorkflowRuntime[IO, Ctx, String],
-      stateEncoder: Encoder[workflows4s.wio.WCState[Ctx]],
-      
-      parseId: String => String,
+      stateEncoder: Encoder[WCState[Ctx]],
   )
 }

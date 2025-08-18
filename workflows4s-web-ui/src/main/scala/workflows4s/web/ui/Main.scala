@@ -1,9 +1,6 @@
- package workflows4s.web.ui
+package workflows4s.web.ui
 
 import cats.effect.IO
-import sttp.client4.*
-import sttp.client4.circe.*
-import sttp.client4.impl.cats.FetchCatsBackend
 import tyrian.Html.*
 import tyrian.*
 import workflows4s.web.ui.components.*
@@ -53,13 +50,32 @@ object Main extends TyrianIOApp[Msg, Model] {
 
     case Msg.ToggleJsonState =>
       (model.toggleJsonState, Cmd.None)
-  }
 
- 
+    case Msg.LoadProgress | Msg.RefreshProgress =>
+      (model.selectedWorkflowId, model.instanceIdInput) match {
+        case (Some(wfId), instanceId) if instanceId.nonEmpty =>
+          (model.loadingProgress, Http.loadProgress(wfId, instanceId))
+        case _ =>
+          (model.withProgressError("Select a workflow and provide an instance ID."), Cmd.None)
+      }
+
+    case Msg.ProgressLoadedSuccess(progress, mermaidStr) =>
+      val next = model.withProgress(progress, mermaidStr)
+      (next, Cmd.None)
+
+    case Msg.ProgressLoadedFailure(reason) =>
+      (model.withProgressError(reason), Cmd.None)
+
+    case Msg.ToggleMermaidDiagram =>
+      val next = model.toggleMermaidDiagram
+      (next, Cmd.None)
+  }
 
   def view(model: Model): Html[Msg] =
     div(
       style := """
+        margin: 0;
+        padding: 0;
         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
         background-color: #f4f7f9;
         min-height: 100vh;
@@ -77,11 +93,18 @@ object Main extends TyrianIOApp[Msg, Model] {
         model.appState match {
           case AppState.Initializing | AppState.LoadingWorkflows =>
             ReusableViews.loadingSpinner("Fetching workflow definitions...")
+          case AppState.LoadingProgress =>
+            div(
+              workflowsView(model),
+              instanceView(model),
+              ReusableViews.loadingSpinner("Loading workflow progress..."),
+            )
           case AppState.Ready(maybeError) =>
             div(
               maybeError.map(ReusableViews.errorView).getOrElse(div()),
               workflowsView(model),
               instanceView(model),
+              model.currentInstance.map(_ => progressView(model)).getOrElse(div()),
             )
           case AppState.LoadingInstance =>
             div(
@@ -193,6 +216,42 @@ object Main extends TyrianIOApp[Msg, Model] {
       if (model.showJsonState) jsonStateViewer(instance) else div(),
     )
 
+  private def progressView(model: Model): Html[Msg] =
+    section(cls := "progress-section")(
+      h2()("Workflow Progress Visualization"),
+      div(cls := "diagram-controls")(
+        button(
+          onClick(Msg.LoadProgress),
+          disabled(model.appState == AppState.LoadingProgress),
+          cls := "success"
+        )(if (model.appState == AppState.LoadingProgress) "Loading..." else "Load Progress"),
+        model.mermaidDiagram.map(_ => 
+          button(onClick(Msg.RefreshProgress), cls := "warning")("🔄 Refresh")
+        ).getOrElse(div()),
+        model.mermaidDiagram.map(_ => 
+          button(onClick(Msg.ToggleMermaidDiagram))(
+            if (model.showMermaidDiagram) "Hide Diagram" else "Show Diagram"
+          )
+        ).getOrElse(div()),
+      ),
+      model.mermaidDiagram match {
+        case Some(mermaid) if model.showMermaidDiagram =>
+          MermaidVisualization.view(mermaid)
+        case Some(_) =>
+          div()("Diagram loaded. Click 'Show Diagram' to visualize.")
+        case None =>
+          div()("Click 'Load Progress' to generate workflow diagram.")
+      },
+      model.progressData.map(data =>
+        details()(
+          summary()("Raw Progress Data"),
+          div(cls := "progress-data")(
+            pre()(code()(data.spaces2))
+          )
+        )
+      ).getOrElse(div()),
+    )
+
   private def jsonStateViewer(instance: WorkflowInstance): Html[Msg] =
     pre(
       style := """
@@ -209,46 +268,4 @@ object Main extends TyrianIOApp[Msg, Model] {
     )
 
   def subscriptions(model: Model): Sub[IO, Msg] = Sub.None
-}
-
- 
-
-// HTTP calls in a separate object for clarity
-object Http {
-  private val backend = FetchCatsBackend[IO]()
-  private val baseUri = uri"http://localhost:8081/api/v1"
-
-  def loadWorkflows: Cmd[IO, Msg] = {
-    val request = basicRequest
-      .get(baseUri.addPath("definitions"))
-      .response(asJson[List[WorkflowDefinition]])
-
-    Cmd.Run(
-      backend
-        .send(request)
-        .map(_.body)
-        .map {
-          case Right(workflows) => Msg.WorkflowsLoadedSuccess(workflows)
-          case Left(error)      => Msg.WorkflowsLoadedFailure(s"Failed to decode: $error")
-        }
-        .handleError(err => Msg.WorkflowsLoadedFailure(err.getMessage)),
-    )
-  }
-
-  def loadInstance(workflowId: String, instanceId: String): Cmd[IO, Msg] = {
-    val request = basicRequest
-      .get(baseUri.addPath("definitions", workflowId, "instances", instanceId))
-      .response(asJson[WorkflowInstance])
-
-    Cmd.Run(
-      backend
-        .send(request)
-        .map(_.body)
-        .map {
-          case Right(instance) => Msg.InstanceLoadedSuccess(instance)
-          case Left(error)     => Msg.InstanceLoadedFailure(s"Failed to decode: $error")
-        }
-        .handleError(err => Msg.InstanceLoadedFailure(err.getMessage)),
-    )
-  }
 }
